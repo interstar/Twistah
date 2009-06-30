@@ -1,0 +1,533 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="22" zv="Cache for Windows (x86-32) 2008.1 (Build 401U)" ts="2008-07-04 03:03:15">
+<Project name="NRWiki" LastModified="2008-07-04 03:02:51" Target="save^News" TargetType="2">
+  <Items>
+    <ProjectItem name="NRWiki.mac" type="MAC"/>
+    <ProjectItem name="News.mac" type="MAC"/>
+    <ProjectItem name="Page.mac" type="MAC"/>
+    <ProjectItem name="csp/user/edit.csp" type="CSP"/>
+    <ProjectItem name="csp/user/navbar.CSP" type="CSP"/>
+    <ProjectItem name="csp/user/news.CSP" type="CSP"/>
+    <ProjectItem name="csp/user/view.csp" type="CSP"/>
+    <ProjectItem name="html.mac" type="MAC"/>
+  </Items>
+</Project>
+
+
+<Routine name="NRWiki" type="MAC" languagemode="0" timestamp="61181,5012"><![CDATA[
+NRWiki
+ 
+	; Copyright (c) 2008, Phil Jones (http://www.synaesmedia.net) / NooRanch Creações Ltda 
+ 
+	; All rights reserved.
+ 
+	; Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+ 
+    ; * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+    ; * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+    ; * Neither the name of NooRanch Creações Ltda nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+ 
+	; THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  	
+getRoot()
+	; I'm sure I should be able to discover this, but let's hardwire it in one place 
+	; until I find out how
+	quit "/csp/USER/"
+	
+ 
+#define NLCR $c(10)_$c(13)
+ 
+	
+editForm(pageName)
+	quit $$form^html("POST",$$getRoot()_"view.csp",$$j^html($listbuild($$hidden^html("edit",1),$$hidden^html("page",pageName),$$text^html("body",$$paras^Page(pageName)),$$submit^html)))
+ 
+splitBody(str,&newParas)
+	new i
+	for i=1:1:$length(str,$$$NLCR) {
+		set newParas(i) = $piece(str,$$$NLCR,i)
+	}
+	quit
+ 
+render(pageName)
+	new i,page,build
+	set build=""
+	set page=""
+	do loadPage^Page(pageName,.page)
+	set i=""
+	for { set i= $order(page(i))
+		quit:i=""
+		set p = $$wikify(page(i))
+		
+		set build=build_$$p^html(p)
+	}
+	set build=build_$$hr^html()	
+	set build=build_$$p^html($$link^html($$getRoot()_"edit.csp?page="_pageName,"Edit this page"))
+	quit build
+ 
+linkToPage(pageName)
+	if $$pageExists^Page(pageName) {
+		quit $$link^html($$getRoot()_"view.csp?page="_pageName,pageName)
+	}
+	quit $$link^html($$getRoot()_"edit.csp?page="_pageName,pageName)
+	
+wikify(str)
+	new i,new,mode,tmp
+	new command, argList
+	set tmp=""
+	set new =""
+	set mode=0 ; copy
+	
+	set i=1
+	if $$isCommand(.str,.i,.command,.argList) {
+		do command(command,$get(argList),.new)
+	} else {
+	
+		for i=1:1:$length(str) {
+			if $$isLink(.str,.i,.tmp) {
+				set new=new_$$linkToPage(tmp)
+				set tmp=""
+			} else {
+				set new=new_$extract(str,i)
+			}		
+		}
+	}
+	quit new
+ 
+isLink(&str,&i,&build)
+	new j,ret
+	set ret=0
+	if ($extract(str,i,i+1)="[[") {
+		set j=i+2
+		while $$isAlpha($extract(str,j)) {
+			set build=build_$extract(str,j)
+			set j=j+1
+			
+		}
+		if $extract(str,j,j+1)="]]" {
+			set ret=1
+			set i=i+$length(build)+3
+		}
+	}
+	quit ret
+ 
+ 
+nextWordToken(&str,&j)
+	new build
+	set build=""
+	while $$isAlpha($extract(str,j)) {
+		set build=build_$extract(str,j)
+		set j=j+1
+	}
+	quit build
+	
+isCommand(&str,&i,&command,&argList)
+	if ($extract(str,i)'=":") { quit 0 }
+	new j,build
+	set j=i+1
+	
+	set command= $$nextWordToken(.str,.j)
+	
+	if $extract(str,j) '= "(" { quit 0 }
+	set build=""
+	set j=j+1
+	while $extract(str,j) '= ")" {
+		set build=build_$extract(str,j)
+		set j=j+1
+	}
+	set argList = build
+ 
+	quit 1
+	
+command(command,argList,&new)
+	if command = "all" {
+		set new = $$listAll()
+	}
+	
+	
+	quit
+	
+ 
+isCap(s)
+	quit $find("ABCDEFGHIJKLMNOPQRSTUVWXYZ",s)>0
+ 
+isAlpha(s)
+	quit $find("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",s)>0
+ 
+listAll()
+	new i,build
+	set i=""
+	set build=""
+	for { set i=$order(^NRWiki(i))
+		quit:i=""
+		set build=build_$$li^html($$link^html($$getRoot()_"view.csp?page="_i,i))
+	}
+	quit $$ul^html(build)
+	
+ 
+ 
+]]></Routine>
+
+
+<Routine name="News" type="MAC" languagemode="0" timestamp="61181,10703"><![CDATA[
+News
+ 
+	; Copyright (c) 2008, Phil Jones (http://www.synaesmedia.net) / NooRanch Creações Ltda 
+ 
+	; All rights reserved.
+ 
+	; Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+ 
+    ; * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+    ; * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+    ; * Neither the name of NooRanch Creações Ltda nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+ 
+	; THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+ 
+get(user,id)
+	new date,hour
+	set date=""
+	set hour=""
+	set date = $order(^News(user,id,date))
+	set hour = $order(^News(user,id,date,hour))
+	quit $get(^News(user,id,date,hour))
+	
+save(user,title,item)
+	new id,date,hour
+	set id = $i(^News)
+	set date = $piece($horolog,",",1)
+	set hour = $piece($horolog,",",2)
+	set ^News(user,id,date,hour)=title_"~"_item
+	quit
+	
+ 
+next(user,id)
+	quit $order(^News(user,id),-1)
+ 
+show(user,max=20)
+	new id,news,count
+	set id=""
+	set count=0
+	
+	for {
+		quit:count>max
+		set id = $$next(user,id)
+		quit:id=""
+		set news=$$get(user,id)
+		write !,$$li^html($$b^html($piece(news,"~",1))_" :: "_$extract($piece(news,"~",2),1,100))
+		set count=count+1
+ 
+	}
+	quit
+]]></Routine>
+
+
+<Routine name="Page" type="MAC" languagemode="0" timestamp="61181,10931"><![CDATA[
+Page
+ 
+	; Copyright (c) 2008, Phil Jones (http://www.synaesmedia.net) / NooRanch Creações Ltda 
+ 
+	; All rights reserved.
+ 
+	; Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+ 
+    ; * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+    ; * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+    ; * Neither the name of NooRanch Creações Ltda nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+ 
+	; THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+ 
+ 	; NRWiki is wiki data
+ 	
+ 	; paragraph oriented functions
+	
+	; page global is ^NRWiki
+ 
+getPara(pageName,para)
+	quit $get(^NRWiki(pageName,para))
+ 
+savePara(pageName,para,val)
+	set ^NRWiki(pageName,para)=val
+  	quit
+  	
+ 	; page oriented functions
+	
+pageExists(pageName)
+	quit ($data(^NRWiki(pageName)) '= 0)
+	
+savePage(pageName,&paras)
+	new i
+	set i = ""
+	kill ^NRWiki(pageName)
+	for { set i=$order(paras(i))
+		quit:i=""
+		do savePara(pageName,i,$$strip(paras(i)))
+	}
+	do save^News("Wiki","</b>Page<b> "_$$linkToPage^NRWiki(pageName),"Saved at "_$zdate($piece($horolog,",",1)))
+	quit
+ 
+loadPage(pageName,&paras) 
+	merge paras = ^NRWiki(pageName)
+ 
+#define NLCR $c(10)_$c(13)
+ 
+ 
+paras(pageName)
+	new i,paras,build
+	do loadPage(pageName,.paras)
+	set build =""
+	set i=""
+	for { set i= $order(paras(i))
+		quit:i=""
+		set build=build_paras(i)_$$$NLCR
+	}
+	quit build
+ 
+strip(str)
+	if $extract(str,1)=$c(10) {
+		set str=$extract(str,2,$length(str))
+	}
+	quit str
+ 
+ 
+]]></Routine>
+
+
+<CSP name="edit.csp" application="/csp/user/" default="1"><![CDATA[
+<html>
+
+<!-- 
+	; Copyright (c) 2008, Phil Jones (http://www.synaesmedia.net) / NooRanch Creações Ltda 
+
+	; All rights reserved.
+
+	; Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+    ; * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+    ; * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+    ; * Neither the name of NooRanch Creações Ltda nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+	; THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+
+-->
+
+<script language="CACHE" runat="Server">
+set page=""
+set pageName= $Get(%request.Data("page",1))
+if pageName = "" {
+	set pageName = "HelloWorld"
+}
+</script>
+
+<head>
+
+<!-- Cache Wiki - Edit -->
+<title>	Cache Wiki - Edit  </title>
+
+</head>
+
+<body>
+	<CSP:INCLUDE PAGE="navbar.csp">
+	<h2>Edit #(pageName)#</h2>
+<script language="CACHE" runat="Server">
+write $$editForm^NRWiki(pageName)
+</script>
+</body>
+</html>
+]]></CSP>
+
+
+<CSP name="navbar.CSP" application="/csp/user/" default="1"><![CDATA[
+
+<table>
+<tr>
+	#($$td^html($$link^html("/csp/USER/view.csp?page=HelloWorld","Hello World")))#
+	#($$td^html($$link^html("/csp/USER/news.csp?user=Wiki","RecentChanges")))#
+	#($$td^html($$link^html("/csp/USER/view.csp?page=AllPages","All Pages")))#
+
+</tr>
+</table>
+]]></CSP>
+
+
+<CSP name="news.CSP" application="/csp/user/" default="1"><![CDATA[
+<html>
+
+<!-- 
+	; Copyright (c) 2008, Phil Jones (http://www.synaesmedia.net) / NooRanch Creações Ltda 
+
+	; All rights reserved.
+
+	; Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+    ; * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+    ; * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+    ; * Neither the name of NooRanch Creações Ltda nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+	; THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+-->
+
+<script language="CACHE" runat="Server">
+
+set user= $Get(%request.Data("user",1))
+if user = "" {
+	set user = "Wiki"
+}
+
+
+</script>
+
+<head>
+
+<!-- Twistah View -->
+<title>	Twistah - View  </title>
+
+</head>
+
+<body>
+<table>
+<tr>
+
+</tr>
+</table>
+	<CSP:INCLUDE PAGE="navbar.csp">
+
+	<h2>News of #(user)#</h2>
+
+<ul>
+<script language="CACHE" runat="Server">
+	do show^News(user)
+</script>
+</ul>
+
+</body>
+</html>
+]]></CSP>
+
+
+<CSP name="view.csp" application="/csp/user/" default="1"><![CDATA[
+<html>
+
+<!-- 
+	; Copyright (c) 2008, Phil Jones (http://www.synaesmedia.net) / NooRanch Creações Ltda 
+
+	; All rights reserved.
+
+	; Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+    ; * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+    ; * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+    ; * Neither the name of NooRanch Creações Ltda nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+	; THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+-->
+
+<script language="CACHE" runat="Server">
+set page=""
+set pageName= $Get(%request.Data("page",1))
+if pageName = "" {
+	set pageName = "HelloWorld"
+}
+if $get(%request.Data("edit",1)) '= "" {
+	set newBody = $get(%request.Data("body",1))
+	do splitBody^NRWiki(newBody,.newParas)
+	do savePage^Page(pageName,.newParas)
+}
+
+</script>
+
+<head>
+
+<!-- Cache Wiki - View -->
+<title>	Cache Wiki - View  </title>
+
+</head>
+
+<body>
+
+	<CSP:INCLUDE PAGE="navbar.csp">
+
+	<h2>#(pageName)#</h2>
+	
+<script language="CACHE" runat="Server">
+	write !,$$render^NRWiki(pageName)
+</script>
+
+</body>
+</html>
+]]></CSP>
+
+
+<Routine name="html" type="MAC" languagemode="0" timestamp="61181,10639"><![CDATA[
+html
+ 
+	; Copyright (c) 2008, Phil Jones (http://www.synaesmedia.net) / NooRanch Creações Ltda 
+ 
+	; All rights reserved.
+ 
+	; Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+ 
+    ; * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+    ; * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+    ; * Neither the name of NooRanch Creações Ltda nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+ 
+	; THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+#define NLCR $c(10)_$c(13)
+ 
+tag(name,body)
+	if body = "" { quit "" }
+	quit "<"_name_">"_body_"</"_name_">"
+	
+h(depth,text)
+	quit $$tag("h"_depth,text)
+ 
+p(text) 
+	quit $$tag("p",text)
+	
+text(name,data,rows=30,cols=60) 
+	quit "<textarea name='"_name_"' rows='"_rows_"' cols='"_cols_"'>"_data_"</textarea>"
+	
+submit(name)
+	quit $$p("<input type='submit'/>")
+ 
+j(&xs)
+	new i,build
+	set build=""
+	for i=1:1:$length(xs) {
+		set build=build_$$$NLCR_$listget(xs,i)
+	}
+	quit build
+		
+hr() 
+	quit "<hr/>"
+	
+hidden(name,val) 
+	quit "<input type='hidden' name='"_name_"' value='"_val_"'/>"
+	
+link(url,text) 
+	quit "<a href='"_url_"'>"_text_"</a>"
+	
+form(method,action,content)
+	quit "<form method='"_method_"' action='"_action_"'>"_content_"</form>"
+	
+li(s)
+	quit $$tag("li",s)
+ 
+ul(s)
+	quit $$tag("ul",s)
+	
+tr(s)
+	quit $$tag("tr",s)
+ 
+td(s)
+	quit $$tag("td",s)
+	
+b(s)
+	quit $$tag("b",s)
+]]></Routine>
+</Export>
